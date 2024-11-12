@@ -3,6 +3,12 @@ import mathutils
 import os
 import math
 
+# PATHS
+left_curve_path = '/home/sergey/Documents/2024_teaching/Blender/Left_Rail_YZ.obj'
+right_curve_path = '/home/sergey/Documents/2024_teaching/Blender/Right_Rail_YZ.obj'
+rail_profile_path = '/home/sergey/Documents/2024_teaching/Blender/Rail_Profile2D.obj'
+sleeper_profile_path = '/home/sergey/Documents/2024_teaching/Blender/Sleeper_Profile_Offset_ZY.obj'
+
 # CONSTANTS
 TRACK_GAUGE = 1.520 # meters
 SLEEPER_SPACING = 0.6 # meters
@@ -34,6 +40,13 @@ def import_obj_polyline(filepath):
     bpy.context.collection.objects.link(curve_obj)
     return curve_obj
 
+def smooth_curve(curve_obj, iterations=5):
+    bpy.context.view_layer.objects.active = curve_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.curve.select_all(action='SELECT')
+    for _ in range(iterations):
+        bpy.ops.curve.smooth()
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 def calculate_center_line(left, right):
     left_spline = left.data.splines[0]
@@ -102,54 +115,64 @@ def create_rail(rail_curve, rail_profile):
     rail_curve.data.bevel_object = rail_profile
     rail_curve.data.fill_mode = 'FULL'
 
-def evaluate_bezier_curve(spline, t_normalized):
-    # Number of segments in the spline
-    num_segments = len(spline.bezier_points) - 1
-    if num_segments <= 0:
-        return None, None
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    rail_curve.select_set(True)
+    bpy.context.view_layer.objects.active = rail_curve
+    bpy.ops.object.convert(target='MESH')
 
-    # Map t_normalized (0 to 1) to segment index and local t
-    t_global = t_normalized * num_segments
-    segment_index = int(t_global)
-    t = t_global - segment_index
-
-    if segment_index >= num_segments:
-        segment_index = num_segments - 1
-        t = 1.0
-
-    # Get control points for the segment
-    bp0 = spline.bezier_points[segment_index]
-    bp1 = spline.bezier_points[segment_index + 1]
-    P0 = bp0.co.copy()
-    P1 = bp0.handle_right.copy()
-    P2 = bp1.handle_left.copy()
-    P3 = bp1.co.copy()
-
-    # Evaluate position using the cubic Bezier formula
-    u = 1 - t
-    position = (u**3) * P0 + 3 * u**2 * t * P1 + 3 * u * t**2 * P2 + t**3 * P3
-
-    # Evaluate tangent using the derivative of the Bezier curve
-    tangent = 3 * u**2 * (P1 - P0) + 6 * u * t * (P2 - P1) + 3 * t**2 * (P3 - P2)
-    tangent.normalize()
-
-    return position, tangent
+    # Enter edit mode to fill the open ends
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_mode(type='EDGE')
+    bpy.ops.mesh.select_non_manifold()
+    bpy.ops.mesh.edge_face_add()
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 def place_sleepers(centerline_curve, sleeper_obj):
     spline = centerline_curve.data.splines[0]
-    total_length = spline.calc_length()
-    num_sleepers = int(total_length // SLEEPER_SPACING)
+    spline.resolution_u = 64  # Increase as needed for smoother sampling
 
-    # Place sleepers along the curve
-    for i in range(num_sleepers + 1):
+    # Convert the curve to a temporary mesh to access evaluated points
+    temp_curve = centerline_curve.copy()
+    temp_curve.data = centerline_curve.data.copy()
+    bpy.context.collection.objects.link(temp_curve)
+    bpy.ops.object.select_all(action='DESELECT')
+    temp_curve.select_set(True)
+    bpy.context.view_layer.objects.active = temp_curve
+    bpy.ops.object.convert(target='MESH')
+
+    # Get the vertices of the mesh
+    mesh = temp_curve.data
+    verts = [v.co.copy() for v in mesh.vertices]
+
+    # Calculate cumulative distances along the vertices
+    distances = [0]
+    for i in range(1, len(verts)):
+        seg_length = (verts[i] - verts[i - 1]).length
+        distances.append(distances[-1] + seg_length)
+    total_length = distances[-1]
+
+    # Remove the temporary mesh
+    bpy.data.objects.remove(temp_curve, do_unlink=True)
+
+    # Place sleepers at regular intervals along the total length
+    num_sleepers = int(total_length // SLEEPER_SPACING) + 1
+    for i in range(num_sleepers):
         distance = i * SLEEPER_SPACING
-        t_normalized = distance / total_length
-        if t_normalized > 1.0:
-            t_normalized = 1.0  # Clamp to the curve's end
 
-        position, tangent = evaluate_bezier_curve(spline, t_normalized)
-        if position is None or tangent is None:
-            continue  # Skip if evaluation failed
+        # Find the segment where the desired distance falls
+        for j in range(1, len(distances)):
+            if distances[j] >= distance:
+                break
+        else:
+            j = len(distances) - 1
+
+        # Interpolate between verts[j - 1] and verts[j]
+        t = (distance - distances[j - 1]) / (distances[j] - distances[j - 1])
+        position = verts[j - 1].lerp(verts[j], t)
+
+        # Calculate the tangent for orientation
+        tangent = (verts[j] - verts[j - 1]).normalized()
 
         # Create a rotation quaternion
         rotation = tangent.to_track_quat('-Z', 'Y')
@@ -169,6 +192,10 @@ def main(left_curve_path, right_curve_path, rail_profile_path, sleeper_profile_p
     if not left_curve or not right_curve:
         print("Error: Could not find curves in imported OBJ files.")
         return
+
+    # Smooth both curves
+    smooth_curve(left_curve)
+    smooth_curve(right_curve)
     
     # Import rail profile
     bpy.ops.wm.obj_import(filepath=rail_profile_path)
@@ -179,16 +206,9 @@ def main(left_curve_path, right_curve_path, rail_profile_path, sleeper_profile_p
         bpy.context.view_layer.objects.active = rail_profile
         bpy.ops.object.convert(target='CURVE')
 
-    # # Set the origin to the geometry center
-    # bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-
     # Ensure the rail_profile is oriented in the XY plane
-    # Adjust rotation if necessary (e.g., rotate around X-axis by 90 degrees)
     rail_profile.rotation_euler = (math.radians(90), 0, 0)  # Adjust as needed
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-
-    # # Apply transformations
-    # bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
     bpy.ops.wm.obj_import(filepath=sleeper_profile_path)
     sleeper_obj = bpy.context.selected_objects[0]
@@ -212,11 +232,5 @@ def main(left_curve_path, right_curve_path, rail_profile_path, sleeper_profile_p
     
     # Step 4: Place sleepers
     place_sleepers(centerline, sleeper_obj)
-
-# PATHS
-left_curve_path = '/home/sergey/Documents/2024_teaching/Blender/Left_Rail_YZ.obj'
-right_curve_path = '/home/sergey/Documents/2024_teaching/Blender/Right_Rail_YZ.obj'
-rail_profile_path = '/home/sergey/Documents/2024_teaching/Blender/Rail_Profile2D.obj'
-sleeper_profile_path = '/home/sergey/Documents/2024_teaching/Blender/Sleeper_Profile_Offset_ZY.obj'
 
 main(left_curve_path, right_curve_path, rail_profile_path, sleeper_profile_path)
