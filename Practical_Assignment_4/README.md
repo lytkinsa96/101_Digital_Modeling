@@ -22,7 +22,7 @@
 
 ### 3. Создать модель колеи в Blender
 
-- Ознакомиться с соответствующим [разделом документации из описания алгоритма](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/2_Modeling/doc/track_modeling.md#curve-and-polyline-consistency)
+- Ознакомиться с соответствующим [разделом документации из описания алгоритма](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/Practical_Assignment_4/doc/track_modeling.md#curve-and-polyline-consistency)
 - Создать полилинию, описывающую один из рельсов колеи участка, используя любое удобное ПО.
 	- Полилиния должна быть привязана к точкам облака.
 	- Полилиния должна состоять только из прямолинейных сегментов (исключая дуги).
@@ -34,7 +34,7 @@
 - Сохранить обе полилинии в формате `obj`.
 - Скачать профиль рельса и модель шпалы из папки [3D Assets](https://disk.yandex.ru/d/KdaNdKgaHsZ3JA).
 - Открыть Blender и перейти во вкладку `Scripting`.
-- Создать новый скрипт и скопировать в него содержимое [track_modeling.py](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/2_Modeling/scripts/track_modeling.py)
+- Создать новый скрипт и скопировать в него содержимое [track_modeling.py](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/Practical_Assignment_4/scripts/track_modeling.py)
 - Изменить пути до необходимых файлов в скрипте и запустить его.
 - Экспортировать результаты в формате `obj` с ориентацией `YZ`:
 	- Ось колеи.
