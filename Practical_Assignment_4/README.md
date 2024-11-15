@@ -22,7 +22,7 @@
 
 ### 3. Создать модель колеи в Blender
 
-- Ознакомиться с соответствующим [разделом документации из описания алгоритма](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/Practical_Assignment_4/doc/track_modeling.md#curve-and-polyline-consistency)
+- Ознакомиться с соответствующим [разделом документации из описания алгоритма](https://github.com/lytkinsa96/101_Digital_Modeling/blob/develop/Practical_Assignment_4/scripts/README.md#curve-and-polyline-consistency)
 - Создать полилинию, описывающую один из рельсов колеи участка, используя любое удобное ПО.
 	- Полилиния должна быть привязана к точкам облака.
 	- Полилиния должна состоять только из прямолинейных сегментов (исключая дуги).
